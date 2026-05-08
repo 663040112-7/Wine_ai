@@ -1,0 +1,15 @@
+tracker_type: bytetrack
+
+# เพิ่ม threshold ให้ track ได้ต่อเนื่องขึ้น
+track_high_thresh: 0.45   # ลดลงนิดให้จับได้ง่ายขึ้น
+track_low_thresh:  0.10
+new_track_thresh:  0.55   # ลดลง — ไม่สร้าง ID ใหม่บ่อย
+
+# เพิ่ม buffer มากขึ้น — จำ ID ไว้นานขึ้นก่อนลืม
+# 30fps × 10วิ = 300 frames — ถ้าคนหายไป 10 วิกลับมายังได้ ID เดิม
+track_buffer: 300
+
+# เพิ่ม match threshold — ต้องมั่นใจมากขึ้นก่อน assign ID ใหม่
+match_thresh: 0.85
+
+fuse_score: true
