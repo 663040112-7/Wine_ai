@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Wine AI — Wine O'Clock</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root{
+  --wine:#7B2D3E;--wine2:#9B3D52;--wine3:#C4758A;
+  --dark:#0C0C14;--card:#15151E;--card2:#1C1C28;
+  --border:#26263A;--text:#EDE8F5;--muted:#7A7590;
+  --green:#27AE60;--amber:#F39C12;--red:#E74C3C;--blue:#3498DB;
+  --green-bg:#0D2B17;--amber-bg:#2B1A05;--red-bg:#2B0D0D;--blue-bg:#0D1E2B;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:var(--text);min-height:100vh;}
+
+/* ── Navbar ── */
+.nav{background:linear-gradient(135deg,#12091E,#1E0F2E);
+  border-bottom:2px solid var(--wine);display:flex;align-items:center;
+  padding:0 20px;height:60px;gap:4px;position:sticky;top:0;z-index:200;}
+.nav-logo{font-size:18px;font-weight:800;color:#F0D8E0;margin-right:20px;white-space:nowrap;letter-spacing:-.3px;}
+.nav-logo span{color:var(--wine3);}
+.nav-tabs{display:flex;gap:2px;}
+.tab{padding:8px 14px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;
+  color:var(--muted);transition:all .2s;border:none;background:none;white-space:nowrap;}
+.tab:hover{color:var(--text);background:#ffffff0d;}
+.tab.on{color:#F0D8E0;background:var(--wine);}
+.nav-right{margin-left:auto;display:flex;align-items:center;gap:10px;}
+.live-pill{display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;
+  background:var(--card2);border:1px solid var(--border);font-size:12px;}
+.dot{width:8px;height:8px;border-radius:50%;background:#555;}
+.dot.on{background:var(--green);box-shadow:0 0 6px var(--green);animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.btn{padding:8px 18px;border-radius:10px;border:none;cursor:pointer;
+  font-size:13px;font-weight:700;transition:all .15s;white-space:nowrap;}
+.btn-go{background:var(--wine);color:#fff;}
+.btn-go:hover{background:var(--wine2);transform:translateY(-1px);}
+.btn-stop{background:var(--red-bg);color:var(--red);border:1px solid #5a1a1a;}
+.btn-stop:hover{background:#3d1010;}
+.btn-sm{padding:6px 14px;font-size:12px;border-radius:8px;}
+
+/* ── Pages ── */
+.page{display:none;max-width:1360px;margin:0 auto;padding:20px;}
+.page.on{display:block;}
+
+/* ── KPI row ── */
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px;}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:16px;
+  padding:18px 20px;position:relative;overflow:hidden;transition:transform .2s;}
+.kpi:hover{transform:translateY(-2px);}
+.kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;}
+.kpi.blue::before{background:var(--blue);}
+.kpi.green::before{background:var(--green);}
+.kpi.red::before{background:var(--red);}
+.kpi.amber::before{background:var(--amber);}
+.kpi.wine::before{background:var(--wine3);}
+.kpi-icon{font-size:24px;margin-bottom:10px;}
+.kpi-val{font-size:40px;font-weight:800;line-height:1;letter-spacing:-1px;}
+.kpi-lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-top:6px;}
+.kpi.blue .kpi-val{color:var(--blue);}
+.kpi.green .kpi-val{color:var(--green);}
+.kpi.red .kpi-val{color:var(--red);}
+.kpi.amber .kpi-val{color:var(--amber);}
+.kpi.wine .kpi-val{color:var(--wine3);font-size:22px;margin-top:8px;}
+
+/* ── Grid layouts ── */
+.g2{display:grid;grid-template-columns:3fr 2fr;gap:16px;margin-bottom:16px;}
+.g2b{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px;}
+
+/* ── Card ── */
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden;}
+.card-hd{padding:16px 20px 12px;border-bottom:1px solid var(--border);}
+.card-hd h2{font-size:13px;font-weight:700;color:var(--text);}
+.card-hd p{font-size:11px;color:var(--muted);margin-top:2px;}
+.card-bd{padding:16px 20px 20px;}
+
+/* ── Live feed ── */
+.feed{position:relative;background:#000;min-height:200px;}
+.feed canvas{width:100%;display:block;}
+.live-tag{position:absolute;top:10px;left:10px;background:rgba(231,76,60,.9);
+  color:#fff;font-size:10px;font-weight:800;padding:3px 10px;border-radius:20px;
+  letter-spacing:1px;display:none;}
+.feed-off{display:flex;align-items:center;justify-content:center;
+  min-height:280px;flex-direction:column;gap:12px;color:var(--muted);}
+.feed-off .icon{font-size:48px;opacity:.3;}
+.feed-off p{font-size:13px;}
+.hud{display:flex;gap:20px;padding:12px 18px;background:#0a0a12;
+  border-top:1px solid var(--border);flex-wrap:wrap;}
+.hud-item{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);}
+.hud-n{font-size:20px;font-weight:800;}
+
+/* ── Alert list ── */
+.alert-list{display:flex;flex-direction:column;gap:8px;max-height:320px;overflow-y:auto;}
+.alert-list::-webkit-scrollbar{width:4px;}
+.alert-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
+.a-item{display:flex;align-items:center;gap:10px;background:var(--card2);
+  border-radius:10px;padding:10px 14px;border-left:3px solid var(--amber);}
+.a-item.urgent{border-left-color:var(--red);}
+.a-time{font-size:11px;color:var(--muted);min-width:55px;font-variant-numeric:tabular-nums;}
+.a-text{font-size:12px;flex:1;color:var(--text);}
+.a-badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;white-space:nowrap;}
+.bi{background:#2B1A05;color:var(--amber);}
+.bl{background:var(--red-bg);color:var(--red);}
+.bp{background:var(--green-bg);color:var(--green);}
+.bw{background:var(--red-bg);color:var(--red);}
+.empty{text-align:center;color:var(--muted);font-size:13px;padding:40px 0;}
+
+/* ── Zone bars ── */
+.zbars{display:flex;flex-direction:column;gap:10px;}
+.zrow{display:flex;flex-direction:column;gap:5px;}
+.zmeta{display:flex;justify-content:space-between;font-size:12px;}
+.zname{color:#C4B0E0;font-weight:500;}
+.zcnt{color:var(--muted);}
+.bar-bg{background:var(--border);border-radius:4px;height:8px;overflow:hidden;}
+.bar-f{height:100%;border-radius:4px;transition:width .7s cubic-bezier(.4,0,.2,1);}
+.chart-wrap{position:relative;height:230px;}
+
+/* ── Behavior tags ── */
+.beh-grid{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+.beh-tag{display:flex;align-items:center;gap:5px;padding:4px 10px;
+  border-radius:20px;font-size:11px;font-weight:600;border:1px solid;}
+
+/* ── Zone Editor ── */
+.ze-wrap{display:grid;grid-template-columns:1fr 260px;gap:16px;}
+.ze-canvas-card{background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden;}
+.ze-toolbar{display:flex;align-items:center;gap:8px;padding:12px 16px;
+  background:#0f0f1a;border-bottom:1px solid var(--border);flex-wrap:wrap;}
+.ze-sel{background:#0d0d18;border:1px solid var(--border);border-radius:8px;
+  color:var(--text);padding:7px 12px;font-size:13px;}
+.tool-btn{padding:6px 12px;border-radius:8px;border:none;cursor:pointer;
+  font-size:12px;font-weight:600;background:var(--card2);color:var(--text);
+  transition:all .15s;}
+.tool-btn:hover{background:#2a2a3a;}
+.tool-btn.act{background:var(--wine);color:#fff;}
+.tool-btn.suc{background:var(--green-bg);color:var(--green);border:1px solid #1a5a30;}
+.tool-btn.dan{background:var(--red-bg);color:var(--red);border:1px solid #5a1a1a;}
+#zone-canvas{display:block;cursor:crosshair;max-width:100%;}
+.ze-panel{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;
+  display:flex;flex-direction:column;gap:10px;}
+.ze-panel h3{font-size:13px;font-weight:700;}
+.zone-list{display:flex;flex-direction:column;gap:6px;max-height:280px;overflow-y:auto;}
+.zone-item{display:flex;align-items:center;gap:8px;padding:8px 10px;
+  background:var(--card2);border-radius:8px;cursor:pointer;transition:all .15s;
+  border:1px solid transparent;}
+.zone-item:hover{border-color:var(--border);}
+.zone-item.sel{border-color:var(--wine);background:#1E1020;}
+.zdot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.ztxt{font-size:13px;flex:1;}
+.zdel{background:none;border:none;color:var(--red);cursor:pointer;
+  font-size:16px;padding:0 4px;opacity:.5;}
+.zdel:hover{opacity:1;}
+.ze-info{background:#0d0d18;border-radius:10px;padding:12px;font-size:12px;
+  color:var(--muted);line-height:1.7;}
+.ze-btn{width:100%;padding:10px;border-radius:10px;border:none;cursor:pointer;
+  font-size:13px;font-weight:700;transition:all .15s;}
+.confirm-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:500;
+  display:flex;align-items:center;justify-content:center;}
+.confirm-box{background:var(--card);border:1px solid var(--border);border-radius:16px;
+  padding:28px 32px;max-width:380px;width:90%;text-align:center;}
+.confirm-box h3{font-size:16px;font-weight:700;margin-bottom:8px;}
+.confirm-box p{font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.5;}
+.confirm-btns{display:flex;gap:10px;justify-content:center;}
+.confirm-yes{padding:9px 24px;border-radius:8px;border:none;cursor:pointer;
+  background:var(--red);color:#fff;font-size:13px;font-weight:700;}
+.confirm-no{padding:9px 24px;border-radius:8px;border:none;cursor:pointer;
+  background:var(--card2);color:var(--text);font-size:13px;font-weight:700;}
+.ze-save{background:var(--green);color:#fff;}
+.ze-save:hover{background:#219150;}
+.ze-load{background:var(--card2);color:var(--muted);}
+.ze-load:hover{background:#2a2a3a;}
+
+/* ── Settings ── */
+.set-wrap{max-width:680px;margin:0 auto;}
+.field{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;}
+.field label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:600;}
+.field input,.field select{background:#0d0d18;border:1px solid var(--border);
+  border-radius:10px;color:var(--text);padding:10px 14px;font-size:14px;
+  width:100%;transition:border .2s;}
+.field input:focus{outline:none;border-color:var(--wine);}
+.fields-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.tog-row{display:flex;align-items:center;justify-content:space-between;
+  padding:14px 16px;background:var(--card2);border-radius:10px;margin-bottom:10px;}
+.tog-info h4{font-size:14px;font-weight:600;}
+.tog-info p{font-size:12px;color:var(--muted);margin-top:2px;}
+.tog{position:relative;width:46px;height:26px;flex-shrink:0;}
+.tog input{display:none;}
+.tog-sl{position:absolute;inset:0;background:#333;border-radius:26px;cursor:pointer;transition:.3s;}
+.tog input:checked+.tog-sl{background:var(--wine);}
+.tog-sl::before{content:'';position:absolute;width:20px;height:20px;
+  left:3px;top:3px;background:#fff;border-radius:50%;transition:.3s;}
+.tog input:checked+.tog-sl::before{transform:translateX(20px);}
+.save-btn{width:100%;padding:13px;background:var(--wine);border:none;
+  border-radius:12px;color:#fff;font-size:15px;font-weight:700;
+  cursor:pointer;transition:all .2s;margin-top:6px;}
+.save-btn:hover{background:var(--wine2);transform:translateY(-1px);}
+.divider{height:1px;background:var(--border);margin:18px 0;}
+.insight-box{background:var(--card2);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:16px;}
+.insight-box h3{font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px;}
+.insight-src{font-size:11px;color:var(--muted);margin-bottom:14px;}
+.insight-section-title{font-size:12px;font-weight:700;color:var(--wine3);margin:12px 0 4px;}
+.insight-p{font-size:12px;color:#c8c0e0;line-height:1.6;margin:2px 0;}
+.insight-rec{background:var(--card);border-left:3px solid var(--wine);border-radius:6px;
+  padding:7px 12px;margin:4px 0;font-size:12px;color:var(--text);}
+.section-lbl{font-size:11px;font-weight:700;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px;}
+
+/* ── Toast ── */
+.toast{position:fixed;bottom:24px;right:24px;padding:12px 22px;border-radius:12px;
+  font-weight:700;font-size:13px;z-index:999;opacity:0;transition:all .3s;
+  pointer-events:none;transform:translateY(10px);}
+.toast.show{opacity:1;transform:translateY(0);}
+.toast.ok{background:var(--green);color:#fff;}
+.toast.err{background:var(--red);color:#fff;}
+
+/* ── Sound btn ── */
+.sound-btn{display:flex;align-items:center;gap:6px;padding:6px 12px;
+  border-radius:8px;background:var(--card2);border:1px solid var(--border);
+  cursor:pointer;font-size:12px;color:var(--muted);transition:all .15s;}
+.sound-btn:hover{border-color:var(--wine);color:var(--text);}
+
+/* ── Behavior ref ── */
+.beh-table{width:100%;border-collapse:collapse;}
+.beh-table th{background:var(--card2);padding:9px 12px;font-size:11px;
+  text-align:left;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;}
+.beh-table td{padding:9px 12px;font-size:12px;border-top:1px solid var(--border);}
+.beh-table tr:hover td{background:var(--card2);}
+
+/* ── Responsive ── */
+@media(max-width:900px){
+  .kpi-row{grid-template-columns:1fr 1fr;}
+  .g2,.g2b,.g3,.ze-wrap,.fields-grid{grid-template-columns:1fr;}
+  .nav-tabs .tab span{display:none;}
+}
+@media(max-width:480px){
+  .kpi-row{grid-template-columns:1fr 1fr;}
+  .nav{padding:0 12px;}
+  .page{padding:12px;}
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-logo">🍷 Wine<span>AI</span></div>
+  <div class="nav-tabs">
+    <button class="tab on"  onclick="show('live',this)">📹 <span>Live</span></button>
+    <button class="tab"     onclick="show('dash',this)">📊 <span>Dashboard</span></button>
+    <button class="tab"     onclick="show('zones',this)">🗺️ <span>Zones</span></button>
+    <button class="tab"     onclick="show('ref',this)">📋 <span>Behavior</span></button>
+    <button class="tab"     onclick="show('set',this)">⚙️ <span>Settings</span></button>
+  </div>
+  <div class="nav-right">
+    <div class="sound-btn" onclick="toggleSound()" id="snd-btn">🔔 <span id="snd-lbl">Sound</span></div>
+    <div class="live-pill">
+      <div class="dot" id="dot"></div>
+      <span id="status-lbl" style="color:var(--muted)">Stopped</span>
+    </div>
+    <button class="btn btn-go" id="main-btn" onclick="toggleEngine()">▶ Start</button>
+  </div>
+</nav>
+
+<!-- ══ LIVE ══ -->
+<div class="page on" id="pg-live">
+  <div class="kpi-row">
+    <div class="kpi blue"><div class="kpi-icon">👥</div>
+      <div class="kpi-val" id="k-cust">0</div><div class="kpi-lbl">In Store</div></div>
+    <div class="kpi green"><div class="kpi-icon">🛒</div>
+      <div class="kpi-val" id="k-seller">0</div><div class="kpi-lbl">Seller</div></div>
+    <div class="kpi red"><div class="kpi-icon">🔔</div>
+      <div class="kpi-val" id="k-alert">0</div><div class="kpi-lbl">Need Help</div></div>
+    <div class="kpi amber"><div class="kpi-icon">👤</div>
+      <div class="kpi-val" id="k-today">—</div><div class="kpi-lbl">Today Total</div></div>
+  </div>
+  <div class="g2">
+    <div class="card">
+      <div class="feed" id="feed-wrap">
+        <div class="feed-off" id="feed-off">
+          <div class="icon">📷</div>
+          <p>Press <b>Start</b> to begin detection</p>
+        </div>
+        <canvas id="live-canvas" style="display:none;width:100%;"></canvas>
+        <div class="live-tag" id="live-tag">● LIVE</div>
+      </div>
+      <div class="hud">
+        <div class="hud-item"><span class="hud-n" style="color:var(--blue)" id="h-cust">0</span><span>customers</span></div>
+        <div class="hud-item"><span class="hud-n" style="color:var(--green)" id="h-seller">0</span><span>seller</span></div>
+        <div class="hud-item"><span class="hud-n" style="color:var(--red)" id="h-alert">0</span><span>alert</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-hd"><h2>🔔 Recent Alerts</h2><p>Staff assistance needed</p></div>
+      <div class="card-bd">
+        <div class="alert-list" id="alert-list"><div class="empty">No alerts right now</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ DASHBOARD ══ -->
+<div class="page" id="pg-dash">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
+    <span style="font-size:13px;color:var(--muted)">Date:</span>
+    <input type="date" id="rpt-date" style="background:#0d0d18;border:1px solid var(--border);
+      border-radius:8px;color:var(--text);padding:7px 12px;font-size:13px;">
+    <button class="btn btn-go btn-sm" onclick="exportReport('pdf')">📄 Export PDF</button>
+    <button class="btn btn-sm" style="background:var(--green-bg);color:var(--green);
+      border:1px solid #1a5a30;" onclick="exportReport('html')">🌐 Export HTML</button>
+    <button class="btn btn-sm" style="background:var(--card2);color:var(--muted);" onclick="loadDash()">🔄 Refresh</button>
+  </div>
+  <div class="kpi-row">
+    <div class="kpi blue"><div class="kpi-icon">👤</div>
+      <div class="kpi-val" id="d-total">—</div><div class="kpi-lbl">Customers Today</div></div>
+    <div class="kpi amber"><div class="kpi-icon">🍷</div>
+      <div class="kpi-val" id="d-inter">—</div><div class="kpi-lbl">Interested</div></div>
+    <div class="kpi green"><div class="kpi-icon">💰</div>
+      <div class="kpi-val" id="d-purch">—</div><div class="kpi-lbl">At Counter</div></div>
+    <div class="kpi wine"><div class="kpi-icon">📍</div>
+      <div class="kpi-val" id="d-zone">—</div><div class="kpi-lbl">Top Zone</div></div>
+  </div>
+  <div class="g2b">
+    <div class="card">
+      <div class="card-hd"><h2>📊 Hourly Behavior</h2><p>Today's activity breakdown</p></div>
+      <div class="card-bd"><div class="chart-wrap"><canvas id="hourly-chart"></canvas></div></div>
+    </div>
+    <div class="card">
+      <div class="card-hd"><h2>📍 Zone Activity</h2><p>Event frequency by zone</p></div>
+      <div class="card-bd"><div class="zbars" id="zone-bars"><div class="empty">No data</div></div></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-hd"><h2>⏰ Alert Timeline</h2><p>Customers who needed staff assistance today</p></div>
+    <div class="card-bd">
+      <div class="alert-list" id="dash-alerts"><div class="empty">No alerts today</div></div>
+    </div>
+  </div>
+
+  <div class="insight-box" id="insight-box">
+    <h3>🤖 Daily Insight & Recommendations</h3>
+    <div class="insight-src" id="insight-src">Click "Generate Insight" to analyze today's data</div>
+    <div id="insight-content" style="color:var(--muted);font-size:13px;">
+      <button class="btn btn-go btn-sm" onclick="loadInsight()" style="margin-top:8px">
+        ✨ Generate Insight
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ ZONE EDITOR ══ -->
+<div class="page" id="pg-zones">
+  <div class="ze-wrap">
+    <div class="ze-canvas-card">
+      <div class="ze-toolbar">
+        <span style="font-size:13px;font-weight:700;color:#F0D8E0">🗺️ Zone Editor</span>
+        <select class="ze-sel" id="zone-sel">
+          <option>wine_left</option><option>wine_right</option><option>wine_back</option>
+          <option>counter_checkout</option><option>counter_bar</option>
+          <option>seller_zone</option><option>seating</option><option>entrance</option>
+        </select>
+        <button class="tool-btn" onclick="undoPt()">↩ Undo</button>
+        <button class="tool-btn dan" onclick="clearCur()">🗑 Clear</button>
+        <button class="tool-btn suc" onclick="saveCur()">✅ Save Zone</button>
+        <button class="tool-btn act" onclick="loadFrame()">📷 Load Frame</button>
+        <button class="tool-btn dan" onclick="clearAllZones()" style="margin-left:auto">🗑 Clear ALL</button>
+      </div>
+      <canvas id="zone-canvas" width="960" height="540"></canvas>
+    </div>
+    <div class="ze-panel">
+      <h3>Saved Zones</h3>
+      <div class="zone-list" id="zone-list"><div class="empty" style="padding:20px 0">No zones yet</div></div>
+      <div class="ze-info">
+        <b>How to draw:</b><br>
+        🖱 Click on canvas = add point<br>
+        ✅ Save Zone = confirm polygon<br>
+        ↩ Undo = remove last point<br>
+        🗑 Clear = start over<br><br>
+        <b>Minimum 3 points required</b>
+      </div>
+      <button class="ze-btn ze-save" onclick="saveAllZones()">💾 Save All Zones</button>
+      <button class="ze-btn ze-load" style="margin-top:6px" onclick="loadZones()">🔄 Reload from file</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ BEHAVIOR REFERENCE ══ -->
+<div class="page" id="pg-ref">
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-hd"><h2>📋 Behavior Reference</h2><p>How the system classifies customer behavior</p></div>
+    <div class="card-bd">
+      <table class="beh-table">
+        <thead><tr>
+          <th>Behavior</th><th>Condition</th><th>Box Color</th><th>Alert</th>
+        </tr></thead>
+        <tbody id="beh-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-hd"><h2>⏱ Current Thresholds</h2><p>Timing settings for behavior detection</p></div>
+    <div class="card-bd">
+      <div class="g2b" style="margin-bottom:0">
+        <div style="display:flex;flex-direction:column;gap:10px" id="thresh-list"></div>
+        <div style="background:var(--card2);border-radius:12px;padding:16px;">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:8px;font-weight:700;text-transform:uppercase;letter-spacing:.5px">Quick Tips</div>
+          <div style="font-size:12px;color:var(--text);line-height:1.8">
+            • Lower <b>Interested</b> if missing too many customers<br>
+            • Raise <b>Loitering</b> if false alerts too frequent<br>
+            • Raise <b>Confidence</b> to reduce false detections<br>
+            • Lower <b>Confidence</b> in poor lighting conditions
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SETTINGS ══ -->
+<div class="page" id="pg-set">
+  <div class="set-wrap">
+    <div class="card">
+      <div class="card-hd"><h2>⚙️ System Settings</h2><p>Configure detection and camera settings</p></div>
+      <div class="card-bd">
+        <div class="section-lbl">Camera</div>
+        <div class="field">
+          <label>RTSP URL</label>
+          <input id="s-rtsp" placeholder="rtsp://user:password@192.168.x.x/stream2">
+        </div>
+        <div class="divider"></div>
+        <div class="section-lbl">Detection Sensitivity</div>
+        <div class="fields-grid">
+          <div class="field">
+            <label>Interested Threshold (sec)</label>
+            <input id="s-inter" type="number" min="5" max="120">
+          </div>
+          <div class="field">
+            <label>Loitering Threshold (sec)</label>
+            <input id="s-loit" type="number" min="10" max="300">
+          </div>
+          <div class="field">
+            <label>Checkout Min Dwell (sec)</label>
+            <input id="s-check" type="number" min="1" max="30">
+          </div>
+          <div class="field">
+            <label>Seating Wait Alert (sec)</label>
+            <input id="s-seat" type="number" min="30" max="600">
+          </div>
+          <div class="field">
+            <label>Detection Confidence (0.1–0.9)</label>
+            <input id="s-conf" type="number" step="0.05" min="0.1" max="0.9">
+          </div>
+        </div>
+        <div class="divider"></div>
+        <div class="section-lbl">AI Insight (Optional)</div>
+        <div style="background:var(--card2);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:12px;color:var(--muted);line-height:1.7">
+          <b style="color:var(--text)">Gemini API</b> (Free) — Get key at <b>aistudio.google.com</b><br>
+          <b style="color:var(--text)">Claude API</b> (Paid ~฿0.03/call) — Get key at <b>console.anthropic.com</b><br>
+          Leave blank to use Automated Analysis (free, no key needed)
+        </div>
+        <div class="fields-grid">
+          <div class="field">
+            <label>🔑 Gemini API Key (Free)</label>
+            <input id="s-gemini" type="password" placeholder="AIza...">
+          </div>
+          <div class="field">
+            <label>🔑 Claude API Key (Paid)</label>
+            <input id="s-claude" type="password" placeholder="sk-ant-...">
+          </div>
+        </div>
+        <div class="divider"></div>
+        <div class="section-lbl">Privacy</div>
+        <div class="tog-row">
+          <div class="tog-info">
+            <h4>Face Anonymization</h4>
+            <p>Blur faces for PDPA compliance</p>
+          </div>
+          <label class="tog"><input type="checkbox" id="s-anon"><span class="tog-sl"></span></label>
+        </div>
+        <button class="save-btn" onclick="saveSettings()">💾 Save Settings</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── Constants ────────────────────────────────────────────────────────────────
+const ZONE_COLORS = {
+  wine_left:'#27AE60',wine_right:'#27AE60',wine_back:'#27AE60',
+  counter_checkout:'#E74C3C',counter_bar:'#9B59B6',seller_zone:'#F39C12',
+  seating:'#3498DB',entrance:'#1ABC9C'
+};
+const BADGE = {interested:'bi',loitering:'bl',purchasing:'bp',waiting:'bw'};
+const BEHAVIORS = [
+  ["moving",       "Walking in store (not in any zone)",         "Gray",        "No"],
+  ["idle",         "Standing still, not in zone",                "Dark Gray",   "No"],
+  ["wine_browsing","In wine zone (< 25 sec)",                    "Gold",        "No"],
+  ["interested",   "Stopped at wine zone > 25 sec",             "Orange",      "Yes"],
+  ["loitering",    "At wine zone > 90 sec",                     "Red",         "Yes — urgent"],
+  ["seated",       "In seating zone < 3 min",                   "Light Orange","No"],
+  ["waiting",      "In seating zone > 3 min",                   "Dark Red",    "Yes"],
+  ["purchasing",   "Alone at checkout > 5 sec",                 "Green",       "Yes"],
+  ["processing",   "Checkout + seller present",                 "Cyan",        "No"],
+  ["bar_waiting",  "In bar area",                               "Purple",      "No"],
+  ["being_assisted","Wine zone + seller nearby (< 150px)",      "Light Green", "No"],
+  ["seller",       "In seller zone",                            "Yellow dashed","No"],
+];
+const THRESH_LABELS = {
+  dwell_interested:"Interested Threshold",
+  dwell_loitering:"Loitering Threshold",
+  dwell_checkout_min:"Checkout Min Dwell",
+  dwell_seating_waiting:"Seating Wait Alert",
+  conf:"Detection Confidence",
+};
+
+// ─── State ────────────────────────────────────────────────────────────────────
+let running=false, soundOn=true, prevAlerts=0;
+let hourlyChart=null;
+
+// ─── Nav ──────────────────────────────────────────────────────────────────────
+function show(id, btn){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  document.getElementById('pg-'+id).classList.add('on');
+  btn.classList.add('on');
+  if(id==='dash')  loadDash();
+  if(id==='zones') initZoneEditor();
+  if(id==='ref')   renderRef();
+}
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+function toast(msg, type='ok'){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className=`toast show ${type}`;
+  setTimeout(()=>t.className='toast',2800);
+}
+
+// ─── Engine ───────────────────────────────────────────────────────────────────
+async function toggleEngine(){
+  const btn=document.getElementById('main-btn');
+  btn.disabled=true;
+  try {
+    if(!running){
+      const r=await fetch('/api/start',{method:'POST'}).then(r=>r.json()).catch(()=>({ok:false}));
+      if(r.ok){ running=true; updateNav(); startStream(); }
+      else toast('Failed to start. Check RTSP URL in Settings.','err');
+    } else {
+      await fetch('/api/stop',{method:'POST'}).catch(()=>{});
+      running=false; updateNav(); stopStream();
+    }
+  } finally { btn.disabled=false; }
+}
+
+function updateNav(){
+  const dot=document.getElementById('dot');
+  const lbl=document.getElementById('status-lbl');
+  const btn=document.getElementById('main-btn');
+  const tag=document.getElementById('live-tag');
+  dot.className='dot'+(running?' on':'');
+  lbl.textContent=running?'Running':'Stopped';
+  lbl.style.color=running?'var(--green)':'var(--muted)';
+  btn.className='btn '+(running?'btn-stop':'btn-go');
+  btn.textContent=running?'⏹ Stop':'▶ Start';
+  if(tag) tag.style.display=running?'block':'none';
+}
+
+// ─── Stream ───────────────────────────────────────────────────────────────────
+let streamTimer=null, streamCanvas=null, streamCtx=null;
+
+function startStream(){
+  const off=document.getElementById('feed-off');
+  const cv=document.getElementById('live-canvas');
+  if(off) off.style.display='none';
+  if(cv)  cv.style.display='block';
+  if(streamTimer) return;
+  streamCanvas=document.getElementById('live-canvas');
+  streamCtx=streamCanvas.getContext('2d');
+  pollFrame();
+}
+
+function pollFrame(){
+  const img=new Image();
+  img.onload=()=>{
+    if(streamCanvas.width!==img.naturalWidth) streamCanvas.width=img.naturalWidth;
+    if(streamCanvas.height!==img.naturalHeight) streamCanvas.height=img.naturalHeight;
+    streamCtx.drawImage(img,0,0);
+    URL.revokeObjectURL(img.src);
+    if(streamTimer!==false) streamTimer=setTimeout(pollFrame,80);
+  };
+  img.onerror=()=>{ if(streamTimer!==false) streamTimer=setTimeout(pollFrame,500); };
+  fetch('/api/jpeg',{cache:'no-store'})
+    .then(r=>r.blob()).then(b=>{ img.src=URL.createObjectURL(b); })
+    .catch(()=>{ if(streamTimer!==false) streamTimer=setTimeout(pollFrame,500); });
+}
+
+function stopStream(){
+  streamTimer=false; clearTimeout(streamTimer); streamTimer=null;
+  const off=document.getElementById('feed-off');
+  const cv=document.getElementById('live-canvas');
+  if(off) off.style.display='flex';
+  if(cv)  cv.style.display='none';
+}
+
+// ─── Sound ────────────────────────────────────────────────────────────────────
+function toggleSound(){
+  soundOn=!soundOn;
+  document.getElementById('snd-lbl').textContent=soundOn?'Sound':'Muted';
+  document.getElementById('snd-btn').style.borderColor=soundOn?'':'var(--red)';
+}
+function playAlert(){
+  if(!soundOn) return;
+  try{
+    const ctx=new(window.AudioContext||window.webkitAudioContext)();
+    [880,660].forEach((freq,i)=>{
+      const o=ctx.createOscillator(), g=ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.frequency.value=freq;
+      g.gain.setValueAtTime(.25,ctx.currentTime+i*.12);
+      g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+i*.12+.3);
+      o.start(ctx.currentTime+i*.12);
+      o.stop(ctx.currentTime+i*.12+.3);
+    });
+  }catch(e){}
+}
+
+// ─── Polling ──────────────────────────────────────────────────────────────────
+function pollHud(){
+  fetch('/api/hud').then(r=>r.json()).then(d=>{
+    if(d.running!==running){ running=d.running; updateNav();
+      if(running) startStream(); else stopStream(); }
+    ['cust','seller','alert'].forEach(k=>{
+      document.getElementById('k-'+k).textContent=d[k]??0;
+      document.getElementById('h-'+k).textContent=d[k]??0;
+    });
+  }).catch(()=>{});
+}
+
+function pollAlerts(){
+  fetch('/api/alerts').then(r=>r.json()).then(data=>{
+    if(data.length>prevAlerts && prevAlerts>=0) playAlert();
+    prevAlerts=data.length;
+    renderAlerts(data,'alert-list');
+  }).catch(()=>{});
+}
+
+function pollStats(){
+  fetch('/api/stats').then(r=>r.json()).then(d=>{
+    document.getElementById('k-today').textContent=d.total??'—';
+  }).catch(()=>{});
+}
+
+function renderAlerts(data, id){
+  const el=document.getElementById(id);
+  if(!data||!data.length){ el.innerHTML='<div class="empty">No alerts</div>'; return; }
+  el.innerHTML=[...data].reverse().map(a=>`
+    <div class="a-item ${a.behavior==='loitering'?'urgent':''}">
+      <span class="a-time">${a.time}</span>
+      <span class="a-text">#${a.person} → ${a.zone}</span>
+      <span class="a-badge ${BADGE[a.behavior]||'bi'}">${a.behavior}</span>
+    </div>`).join('');
+}
+
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+async function loadDash(){
+  const date=document.getElementById('rpt-date').value||new Date().toISOString().slice(0,10);
+  fetch('/api/stats').then(r=>r.json()).then(d=>{
+    document.getElementById('d-total').textContent=d.total??'—';
+    document.getElementById('d-inter').textContent=d.interested??'—';
+    document.getElementById('d-purch').textContent=d.purchasing??'—';
+    document.getElementById('d-zone').textContent=d.top_zone||'—';
+  }).catch(()=>{});
+
+  fetch('/api/hourly').then(r=>r.json()).then(d=>{
+    const ctx=document.getElementById('hourly-chart');
+    if(hourlyChart) hourlyChart.destroy();
+    Chart.defaults.color='#7A7590'; Chart.defaults.borderColor='#26263A';
+    hourlyChart=new Chart(ctx,{type:'bar',
+      data:{labels:d.labels,datasets:d.datasets.map(ds=>({...ds,borderSkipped:false}))},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{position:'top',labels:{usePointStyle:true,padding:10,color:'#9a80c0',boxWidth:10}},
+                 tooltip:{mode:'index'}},
+        scales:{x:{stacked:true,grid:{display:false},ticks:{callback:(v,i)=>i%3===0?d.labels[i]:'',maxRotation:0}},
+                y:{stacked:true,grid:{color:'#1e1e2a'}}}}});
+  }).catch(()=>{});
+
+  fetch('/api/zones').then(r=>r.json()).then(data=>{
+    const el=document.getElementById('zone-bars');
+    if(!data.length){el.innerHTML='<div class="empty">No data</div>';return;}
+    const max=data[0].count;
+    el.innerHTML=data.map(z=>`<div class="zrow">
+      <div class="zmeta"><span class="zname">${z.zone}</span><span class="zcnt">${z.count.toLocaleString()}</span></div>
+      <div class="bar-bg"><div class="bar-f" style="width:${Math.round(z.count/max*100)}%;background:${ZONE_COLORS[z.zone]||'#7B2D3E'}"></div></div>
+    </div>`).join('');
+  }).catch(()=>{});
+
+  fetch('/api/alerts').then(r=>r.json()).then(d=>renderAlerts(d,'dash-alerts')).catch(()=>{});
+}
+
+function loadInsight(){
+  const date=document.getElementById('rpt-date').value||new Date().toISOString().slice(0,10);
+  const src=document.getElementById('insight-src');
+  const box=document.getElementById('insight-content');
+  src.textContent='Analyzing...';
+  box.innerHTML='<div style="color:var(--muted);padding:20px 0;text-align:center">⏳ Generating insight...</div>';
+  fetch(`/api/insight?date=${date}`)
+    .then(r=>r.json())
+    .then(d=>{
+      src.textContent=d.source||'Analysis';
+      box.innerHTML=d.html||'<p style="color:var(--muted)">No data available</p>';
+    })
+    .catch(e=>{ src.textContent='Error'; box.innerHTML='<p style="color:var(--red)">Failed to load insight</p>'; });
+}
+
+function exportReport(fmt){
+  const date=document.getElementById('rpt-date').value||new Date().toISOString().slice(0,10);
+  window.open(`/api/report/${fmt}?date=${date}`,'_blank');
+}
+
+// ─── Behavior Reference ───────────────────────────────────────────────────────
+function renderRef(){
+  const tb=document.getElementById('beh-tbody');
+  tb.innerHTML=BEHAVIORS.map(([b,cond,col,alrt])=>`
+    <tr>
+      <td><b style="color:${ZONE_COLORS[b]||'#7A7590'}">${b}</b></td>
+      <td style="color:var(--muted)">${cond}</td>
+      <td style="color:var(--muted)">${col}</td>
+      <td style="color:${alrt!=='No'?'var(--amber)':'var(--muted)'}">
+        ${alrt!=='No'?'⚠ '+alrt:alrt}
+      </td>
+    </tr>`).join('');
+
+  fetch('/api/settings').then(r=>r.json()).then(d=>{
+    const el=document.getElementById('thresh-list');
+    el.innerHTML=Object.entries(THRESH_LABELS).filter(([k])=>d[k]!==undefined).map(([k,lbl])=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;
+        padding:10px 14px;background:var(--card2);border-radius:10px;">
+        <span style="font-size:13px">${lbl}</span>
+        <span style="font-size:16px;font-weight:700;color:var(--wine3)">${d[k]}${k==='conf'?'':' sec'}</span>
+      </div>`).join('');
+  }).catch(()=>{});
+}
+
+// ─── Zone Editor ─────────────────────────────────────────────────────────────
+let zCanvas, zCtx, zones={}, curPts=[], activeZone='wine_left';
+
+function initZoneEditor(){
+  zCanvas=document.getElementById('zone-canvas');
+  zCtx=zCanvas.getContext('2d');
+  zCanvas.onclick=onZoneClick;
+  document.getElementById('zone-sel').onchange=e=>{activeZone=e.target.value;};
+  if(!Object.keys(zones).length) loadZones();
+}
+
+async function loadFrame(){
+  toast('Loading frame from camera...','ok');
+  const r=await fetch('/api/frame').then(r=>r.json()).catch(()=>({ok:false}));
+  if(!r.ok){toast('No frame available — start the engine first','err');return;}
+  const img=new Image();
+  img.onload=()=>{
+    zCanvas.width=r.width; zCanvas.height=r.height;
+    zCtx._bg=img; redrawZones(); toast('Frame loaded ✅');
+  };
+  img.src='data:image/jpeg;base64,'+r.image;
+}
+
+async function loadZones(){
+  const r=await fetch('/api/zones/load').then(r=>r.json()).catch(()=>({}));
+  zones=r.cam_0||r||{}; curPts=[];
+  renderZoneList(); redrawZones();
+}
+
+function redrawZones(){
+  const w=zCanvas.width, h=zCanvas.height;
+  zCtx.clearRect(0,0,w,h);
+  if(zCtx._bg) zCtx.drawImage(zCtx._bg,0,0,w,h);
+  else{ zCtx.fillStyle='#111'; zCtx.fillRect(0,0,w,h); }
+
+  for(const [name,pts] of Object.entries(zones)){
+    if(!pts||pts.length<3) continue;
+    const col=ZONE_COLORS[name]||'#7B2D3E';
+    zCtx.beginPath();
+    zCtx.moveTo(pts[0][0],pts[0][1]);
+    for(let i=1;i<pts.length;i++) zCtx.lineTo(pts[i][0],pts[i][1]);
+    zCtx.closePath();
+    zCtx.fillStyle=col+'30'; zCtx.fill();
+    zCtx.strokeStyle=col; zCtx.lineWidth=2; zCtx.stroke();
+    const cx=pts.reduce((s,p)=>s+p[0],0)/pts.length;
+    const cy=pts.reduce((s,p)=>s+p[1],0)/pts.length;
+    zCtx.fillStyle='#fff'; zCtx.font='bold 13px Segoe UI';
+    zCtx.fillText(name,cx-40,cy);
+  }
+
+  if(curPts.length>0){
+    const col=ZONE_COLORS[activeZone]||'#F39C12';
+    zCtx.strokeStyle=col; zCtx.lineWidth=2; zCtx.setLineDash([5,3]);
+    zCtx.beginPath(); zCtx.moveTo(curPts[0][0],curPts[0][1]);
+    for(let i=1;i<curPts.length;i++) zCtx.lineTo(curPts[i][0],curPts[i][1]);
+    if(curPts.length>2) zCtx.lineTo(curPts[0][0],curPts[0][1]);
+    zCtx.stroke(); zCtx.setLineDash([]);
+    curPts.forEach(pt=>{
+      zCtx.beginPath(); zCtx.arc(pt[0],pt[1],5,0,Math.PI*2);
+      zCtx.fillStyle=col; zCtx.fill();
+    });
+    zCtx.fillStyle='rgba(0,0,0,.6)'; zCtx.fillRect(6,6,220,26);
+    zCtx.fillStyle='#fff'; zCtx.font='13px Segoe UI';
+    zCtx.fillText(`Drawing: ${activeZone} (${curPts.length} pts)`,10,24);
+  }
+}
+
+function onZoneClick(e){
+  const rect=zCanvas.getBoundingClientRect();
+  const sx=zCanvas.width/rect.width, sy=zCanvas.height/rect.height;
+  curPts.push([Math.round((e.clientX-rect.left)*sx), Math.round((e.clientY-rect.top)*sy)]);
+  redrawZones();
+}
+
+function undoPt(){ if(curPts.length>0){curPts.pop(); redrawZones();} }
+function clearCur(){ curPts=[]; redrawZones(); }
+
+function saveCur(){
+  if(curPts.length<3){toast('Need at least 3 points','err');return;}
+  zones[activeZone]=[...curPts]; curPts=[];
+  renderZoneList(); redrawZones();
+  toast(`Zone "${activeZone}" saved (${zones[activeZone].length} pts)`);
+}
+
+async function saveAllZones(){
+  const r=await fetch('/api/zones/save',{method:'POST',
+    headers:{'Content-Type':'application/json'},body:JSON.stringify({cam_0:zones})})
+    .then(r=>r.json()).catch(()=>({ok:false}));
+  r.ok ? toast('💾 All zones saved to zones_config.json') : toast('Save failed','err');
+}
+
+// ── Confirm dialog ─────────────────────────────────────────────────────────
+function confirm_(title, msg, onYes) {
+  const overlay = document.createElement('div');
+  overlay.className = 'confirm-overlay';
+  overlay.innerHTML = `
+    <div class="confirm-box">
+      <h3>${title}</h3>
+      <p>${msg}</p>
+      <div class="confirm-btns">
+        <button class="confirm-yes" id="cy">Yes, Delete</button>
+        <button class="confirm-no"  id="cn">Cancel</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.querySelector('#cy').onclick = () => { document.body.removeChild(overlay); onYes(); };
+  overlay.querySelector('#cn').onclick = () => { document.body.removeChild(overlay); };
+  overlay.onclick = (e) => { if(e.target===overlay) document.body.removeChild(overlay); };
+}
+
+function delZone(name) {
+  confirm_(
+    `Delete zone "${name}"?`,
+    `This will remove the zone from the canvas and from zones_config.json when you save.`,
+    async () => {
+      // ลบใน memory ก่อน
+      delete zones[name];
+      renderZoneList(); redrawZones();
+
+      // ลบในไฟล์ทันที
+      const r = await fetch('/api/zones/delete', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({zone: name})
+      }).then(r=>r.json()).catch(()=>({ok:false}));
+
+      if(r.ok) toast(`Zone "${name}" deleted ✅`);
+      else toast(`Deleted from canvas (save to sync file)`, 'ok');
+    }
+  );
+}
+
+async function clearAllZones() {
+  confirm_(
+    'Clear ALL Zones?',
+    'This will delete every zone from the canvas and zones_config.json. This cannot be undone.',
+    async () => {
+      zones = {}; curPts = [];
+      renderZoneList(); redrawZones();
+
+      const r = await fetch('/api/zones/clear', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({cam: 'cam_0'})
+      }).then(r=>r.json()).catch(()=>({ok:false}));
+
+      r.ok ? toast('All zones cleared 🗑') : toast('Failed to clear file','err');
+    }
+  );
+}
+
+function renderZoneList(){
+  const el=document.getElementById('zone-list');
+  const names=Object.keys(zones);
+  if(!names.length){el.innerHTML='<div class="empty" style="padding:16px 0">No zones</div>';return;}
+  el.innerHTML=names.map(n=>`
+    <div class="zone-item ${activeZone===n?'sel':''}" onclick="selectZone('${n}')">
+      <div class="zdot" style="background:${ZONE_COLORS[n]||'#7B2D3E'}"></div>
+      <span class="ztxt">${n}</span>
+      <span style="font-size:11px;color:var(--muted)">${zones[n].length}pts</span>
+      <button class="zdel" onclick="event.stopPropagation();delZone('${n}')">×</button>
+    </div>`).join('');
+}
+
+function selectZone(name){
+  activeZone=name;
+  document.getElementById('zone-sel').value=name;
+  curPts=[]; renderZoneList(); redrawZones();
+}
+
+// ─── Settings ─────────────────────────────────────────────────────────────────
+async function loadSettings(){
+  const d=await fetch('/api/settings').then(r=>r.json()).catch(()=>({}));
+  if(d.rtsp_url)                    document.getElementById('s-rtsp').value=d.rtsp_url;
+  if(d.dwell_interested!=null)      document.getElementById('s-inter').value=d.dwell_interested;
+  if(d.dwell_loitering!=null)       document.getElementById('s-loit').value=d.dwell_loitering;
+  if(d.dwell_checkout_min!=null)    document.getElementById('s-check').value=d.dwell_checkout_min;
+  if(d.dwell_seating_waiting!=null) document.getElementById('s-seat').value=d.dwell_seating_waiting;
+  if(d.conf!=null)                  document.getElementById('s-conf').value=d.conf;
+  if(d.gemini_api_key!=null) document.getElementById('s-gemini').value=d.gemini_api_key;
+  if(d.claude_api_key!=null) document.getElementById('s-claude').value=d.claude_api_key;
+  document.getElementById('s-anon').checked=!!d.anonymize;
+}
+async function saveSettings(){
+  const payload={
+    rtsp_url:document.getElementById('s-rtsp').value,
+    dwell_interested:+document.getElementById('s-inter').value,
+    dwell_loitering:+document.getElementById('s-loit').value,
+    dwell_checkout_min:+document.getElementById('s-check').value,
+    dwell_seating_waiting:+document.getElementById('s-seat').value,
+    conf:+document.getElementById('s-conf').value,
+    anonymize:document.getElementById('s-anon').checked,
+    gemini_api_key:document.getElementById('s-gemini').value,
+    claude_api_key:document.getElementById('s-claude').value,
+  };
+  const r=await fetch('/api/settings',{method:'POST',
+    headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).then(r=>r.json()).catch(()=>({ok:false}));
+  r.ok ? toast('✅ Settings saved!') : toast('Save failed','err');
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+document.getElementById('rpt-date').value=new Date().toISOString().slice(0,10);
+loadSettings();
+pollHud(); pollAlerts(); pollStats();
+setInterval(pollHud,   1500);
+setInterval(pollAlerts,3000);
+setInterval(pollStats, 15000);
+</script>
+</body>
+</html>
